@@ -11,23 +11,32 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.sound.sampled.AudioFileFormat;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
 
 public class WavFileReader {
 	private String wavFileName;
 	private int syncTimeMs;
+	//private int noOfSamplesToRemove;
 	private int bufferSize = 8000;
-	private short channels;
-	private short BPP;
-	private int sampleRate;
+	short channels;
+	short BPP;
+	int sampleRate;
 	
-	/**
-	 * 
-	 * @param channels channels in audio
-	 * @param BPP bits per point
-	 * @param sampleRate sample rate of audio
-	 */
+	
+//	public WavFileReader(String fileName, int syncTimeMs){
+//		this.wavFileName = fileName;
+//		this.syncTimeMs = syncTimeMs;
+//		noOfSamplesToRemove = (int) ((double)(syncTimeMs * Constants.SAMPLE_RATE)/1000 * 2);
+//	}
+	
 	public WavFileReader(short channels, short BPP, int sampleRate){
 		this.channels = channels;
 		this.BPP = BPP;
@@ -40,15 +49,15 @@ public class WavFileReader {
 	 * @param outFileName audio file after removing audio portion between "startMilliSeconds" and "endMilliSeconds"
 	 * @param startMilliSeconds start time in milliseconds to start the removal of audio samples
 	 * @param endMilliSeconds end time in milliseconds to end the removal of audio samples.
-	 * 			if endMillisSeconds is <= zero, then this method will remove "startMilliSeconds" audio from end of the audio
 	 * @return
 	 */
 	public List<Short> subAudio(String inFileName, String outFileName, int startMilliSeconds, int endMilliSeconds){
+		//System.out.println("Start Milis: " + startMilliSeconds + "\n end milis: " + endMilliSeconds);
+		//System.out.println("Sample rate: " + sampleRate + "\nchannels: " + channels);
 		int startNoOfSamples = (int)((double)(startMilliSeconds * sampleRate)/1000 * channels);
 		int endNoOfSamples = (int)((double)(endMilliSeconds * sampleRate)/1000 * channels);
 		
 		//System.out.println("start: " + startNoOfSamples + "\nEnd: " + endNoOfSamples );
-		
 		String tempFile = "abc.raw";
 		File f = new File(tempFile);
 		DataOutputStream dos = null;
@@ -64,18 +73,18 @@ public class WavFileReader {
 			while(dis.available()>0){
 				i++;
 				val =  dis.readShort();
-				audioData.add(val);
-				/*check if audio has to be removed from the selected portion or from the end of audio file*/
 				if(endMilliSeconds > 0){ 
 					if(i >= startNoOfSamples && i <= endNoOfSamples){
 						continue;
 					}
-				}else if(endMilliSeconds <= 0){  //remove audio from end of of the file
+				}else if(endMilliSeconds <= 0){
 					if(i >= startNoOfSamples){
 						break;
 					}
 				}
+				audioData.add(val);
 				dos.writeShort(val);
+				//System.out.println(audioData.get(i++));
 			}
 			dos.close();
 			dis.close();
@@ -86,16 +95,11 @@ public class WavFileReader {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		//create .wav file from .raw file generated
 		copyWaveFile(tempFile, outFileName);
 		return audioData;
 	}
 	
-	/**
-	 * this method read .wav file and return content of the file in the form of list of short integers
-	 * @param audioFilePath complete path of audio file to be read
-	 * @return list of short integers fetched from the audio file
-	 */
+	
 	public List<Short> readFile(String audioFilePath){
 		
 		List<Short> audioData = new ArrayList<Short>();
@@ -197,7 +201,7 @@ public class WavFileReader {
 	        int lengthOfFormat = 16;
 	        short typeOfFormat = 1; //1 for PCM
 	        int bytesRate = sampleRate * BPP * noOfChannels/8;
-	        System.out.println("Byte Rate: " + bytesRate);
+	        //System.out.println("Byte Rate: " + bytesRate);
 	        short totalBytesPerSample =  (short) ((short)(BPP * noOfChannels)/8);
 
 	        int allocSize = 44; //default header size
@@ -238,14 +242,120 @@ public class WavFileReader {
 	        out.write(headerBuffer.array());
 
 	    }
+		
+		/**
+		 * Get the name of file given complete path of that file
+		 * @param completePath complete path of the file
+		 * @return only name of file only excluding file path
+		 */
+		public static String getFileNameOnly(String completePath){
+			String str[] = completePath.split("/");
+			return str[str.length-1];
+			
+		}
+		/**
+		 * convert the original file format to specified format if possible
+		 * @param fromFile original file path
+		 * @param toFile path of the file to be created after conversion
+		 * @param toSampleRate sample rate of output audio file
+		 * @param toChannels channels - mono or stereo of output audio file
+		 * @param toFramSize frame size (- 2 for mono and 4 for stereo -) ,number of bytes per frame, of output audio file
+		 * @return
+		 * @throws UnsupportedAudioFileException
+		 * @throws IOException
+		 */
+		public static void convertAudioFormat(String fromFile, String toFile, float toSampleRate, int toChannels, int toFramSize){
+			System.out.print("File ==> " + getFileNameOnly(fromFile) + " === converting to ===");
+			File file = new File(fromFile);//new File("C:\\Users\\prakashs\\Desktop\\web_audio_data.wav");
+		    File output = new File(toFile);//new File("C:\\Users\\prakashs\\Desktop\\new.wav");
 
+		    AudioInputStream ais;
+		    AudioInputStream eightKhzInputStream = null;
+		    try {
+				ais = AudioSystem.getAudioInputStream(file);
+				AudioFormat sourceFormat = ais.getFormat();
+			    //System.out.println(ais.getFormat().getSampleRate());
+			    AudioFileFormat sourceFileFormat = AudioSystem.getAudioFileFormat(file);
+//			    System.out.println("Channel :" + sourceFormat.getChannels() + 
+//		        		"sample size in bits" + sourceFormat.getSampleSizeInBits()+
+//		        		"frame size" + sourceFormat.getFrameSize() + 
+//		        		"frame rate" + sourceFormat.getFrameRate());
+//		    
+			    if (ais.getFormat().getSampleRate() == 44100f) {
+			        AudioFileFormat.Type targetFileType = sourceFileFormat.getType();
+			        AudioFormat targetFormat = new AudioFormat(
+			                sourceFormat.getEncoding(),
+			                toSampleRate,
+			                sourceFormat.getSampleSizeInBits(),
+			                toChannels,
+			                toFramSize,
+			                toSampleRate,
+			                sourceFormat.isBigEndian());
+			        if (!AudioSystem.isFileTypeSupported(targetFileType) || ! AudioSystem.isConversionSupported(targetFormat, sourceFormat)) {
+			              throw new IllegalStateException("Conversion not supported!");
+			        }
+			        eightKhzInputStream = AudioSystem.getAudioInputStream(targetFormat, ais);
+			        int nWrittenBytes = 0;
+
+			      	nWrittenBytes = AudioSystem.write(eightKhzInputStream, targetFileType, output);
+					//System.out.println("nWrittenBytes: " + nWrittenBytes);
+			        
+			    }
+			} catch (UnsupportedAudioFileException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+		    System.out.println(" ===> " + getFileNameOnly(toFile));
+				
+		}
+		
+		
+		
 	
 	public static void main(String[] args){
-		String inFilePath = "./dataset/syncTest/chrome/mac/1452900915404_test1_browser_audio.wav";
-		String outFilePath = "./dataset/syncTest/chrome/mac/1452900915404_test1_browser_audio_sync.wav";
+//		String inFilePath = "./dataset/syncTest/chrome/mac/1452900915404_test1_browser_audio.wav";
+//		String outFilePath = "./dataset/syncTest/chrome/mac/1452900915404_test1_browser_audio_sync.wav";
 	    WavFileReader wavReader = new WavFileReader(Short.parseShort("2"), Short.parseShort("16"), 44100);
-		List<Short> audioData = wavReader.subAudio(inFilePath, outFilePath, 5000, 0);
+//		List<Short> audioData = wavReader.subAudio(inFilePath, outFilePath, 5000, 0);
+//	
+	    String from = "/Users/Prakashs/Desktop/browser_audio.wav";
+		String to = "/Users/Prakashs/Desktop/browser_audio_mono.wav";
+		wavReader.convertAudioFormat(from, to, 22050f, 1, 2);
 		//System.out.println("Audio Data: " + audioData.size());
+	}
+	
+	public static boolean renameFile(String oldFile, String newFile){
+		//rename file
+		File file = new File(oldFile);
+		File file2 = new File(newFile);
+		return file.renameTo(file2);
+		
+	}
+	public static boolean deleteFile(String file){
+		//delete file
+		System.out.println("\ndeleted file:==> " + file);
+		File f = new File(file);
+		return f.delete();
+				
+
+	}
+	public static boolean copyFile(File source, File dest){
+		
+		try {
+			if(dest.exists()){
+				deleteFile(dest.getPath());
+			}
+			Files.copy(source.toPath(), dest.toPath());
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return false;
+		}
+		return true;
 	}
 
 }

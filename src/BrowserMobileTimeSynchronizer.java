@@ -19,7 +19,6 @@ public class BrowserMobileTimeSynchronizer {
 	int bufferSize = 8000;
 	short channels = 2;
 	short BPP = 16;
-	int sampleRate = 44100;
 	/**
 	 * 
 	 * @param bPath browser file path
@@ -260,7 +259,7 @@ public class BrowserMobileTimeSynchronizer {
 
            
             writeWaveFileHeader(out, intTotalAudioLen, totalDataLen,
-                    sampleRate, channels, BPP);
+                    Constants.SAMPLE_RATE, channels, BPP);
 
             while(in.read(data) != -1){
             	out.write(data);
@@ -404,16 +403,16 @@ public class BrowserMobileTimeSynchronizer {
 	    			String bMiddleString = currentCSVFileName.substring(lengthOfTime, endOfMid) + "_";
 	    			
 	    			// complete browser file paths
-	    			bAudioFilePath  = browserPath + initialFileName + bMiddleString + Constants.BROWSER_AUDIO_FILE;
+	    			bAudioFilePath  = browserPath + initialFileName + bMiddleString + Constants.BROWSER_AUDIO_FILE_NAME;
 	    			bAudioTimeInfoFilePath =  browserPath + initialFileName + bMiddleString + Constants.BROWSER_AUDIO_TIME_FILE;
-	    			bAudioTimeSyncFilePath = browserPath + initialFileName + bMiddleString + Constants.BROWSER_SERVER_TIME_SYNC_FILE;
+	    			bAudioTimeSyncFilePath = browserPath + initialFileName + bMiddleString + Constants.BROWSER_TIME_SYNC_FILE_NAME;
 	    			
 	    			
 	    			
 	    			// complete mobile file paths
-	    			mAudioFilePath  = phonePath + initialFileName + mMiddleString + Constants.PHONE_AUDIO_FILE;
-	    			mAudioTimeInfoFilePath =  phonePath + initialFileName + mMiddleString + Constants.AUDIO_TIME_FILE;
-	    			mAudioTimeSyncFilePath = phonePath + initialFileName + mMiddleString + Constants.PHONE_SERVER_TIME_SYNC_FILE;
+	    			mAudioFilePath  = phonePath + initialFileName + mMiddleString + Constants.PHONE_AUDIO_FILE_NAME;
+	    			mAudioTimeInfoFilePath =  phonePath + initialFileName + mMiddleString + Constants.PHONE_AUDIO_TIME_FILE;
+	    			mAudioTimeSyncFilePath = phonePath + initialFileName + mMiddleString + Constants.PHONE_TIME_SYNC_FILE;
 	    			
 	    			
 	    			
@@ -511,24 +510,19 @@ public class BrowserMobileTimeSynchronizer {
 	
 
 	public static FileType getFileType(String fileName){
-		if(fileName.endsWith(Constants.BROWSER_AUDIO_FILE)){
-			return FileType.BROWSER_AUDIO;
-		}else if(fileName.endsWith(Constants.BROWSER_AUDIO_TIME_FILE))
+		if(fileName.endsWith(Constants.BROWSER_AUDIO_TIME_FILE))
 			return FileType.BROWSER_TIME_INFO;
-		else if(fileName.endsWith(Constants.BROWSER_SERVER_TIME_SYNC_FILE)){
-			return FileType.BROWSER_SERVER_TIME_SYNC;
-		}else if(fileName.endsWith(Constants.PHONE_AUDIO_FILE)){
+		else if(fileName.endsWith(Constants.BROWSER_TIME_SYNC_FILE_NAME)){
+			return FileType.BROWSER_TIME_SYNC;
+		}else if(fileName.endsWith(Constants.BROWSER_AUDIO_FILE_NAME)){
+			return FileType.BROWSER_AUDIO;
+		}else if(fileName.endsWith(Constants.PHONE_AUDIO_TIME_FILE)){
+			return FileType.PHONE_TIME_INFO;
+		}else if(fileName.endsWith(Constants.PHONE_TIME_SYNC_FILE)){
+			return FileType.PHONE_TIME_SYNC;
+		}else if(fileName.endsWith(Constants.PHONE_AUDIO_FILE_NAME)){
 			return FileType.PHONE_AUDIO;
-		}else if(fileName.endsWith(Constants.AUDIO_TIME_FILE)){
-			return FileType.AUDIO_TIME_INFO;
-		}else if(fileName.endsWith(Constants.WEAR_AUDIO_FILE)){
-			return FileType.WEAR_AUDIO;
-		}else if(fileName.endsWith(Constants.PHONE_WEAR_TIME_SYNC_FILE)){
-			return FileType.PHONE_WEAR_TIME_SYNC;
-		}else if(fileName.endsWith(Constants.PHONE_SERVER_TIME_SYNC_FILE)){
-			return FileType.PHONE_SERVER_TIME_SYNC;
 		}
-		
 		return null;
 		
 	}

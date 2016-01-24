@@ -9,12 +9,19 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.musicg.wave.WaveFileManager;
 
 
 public class BrowserMobileWearSynchronizer {
 
+	
+	int bufferSize = 8000;
+	short channels = 2;
+	short BPP = 16;
 	/**
 	 * 
 	 * @param bPath browser file path
@@ -29,7 +36,7 @@ public class BrowserMobileWearSynchronizer {
 	/**
 	 * 
 	 * @param mTimeInfoFilePath the path of audio time info file
-	 * @return time stamp at which "ofDevice" starts recording audio
+	 * @return time stamp at which phone starts recording audio
 	 */
 	private long getAudioStartTime(String mTimeInfoFilePath, String ofDevice) {
 		// TODO Auto-generated method stub
@@ -173,28 +180,54 @@ public class BrowserMobileWearSynchronizer {
 		int phoneWearTimeOffset = getTimeOffset(wTimeSyncFilePath);
 		
 		
-		System.out.println("browser audio start time: "+browserAudioStartTime);
-		System.out.println("phone audio start time: "+phoneAudioStartTime);
-		System.out.println("wear audio start time: " + wearAudioStartTime);
-		System.out.println("browser server time offset: "+browserServerTimeOffset);
-		System.out.println("phone server time offset: "+ phoneServerTimeOffset);
-		System.out.println("phone wear time offset: " + phoneWearTimeOffset);
+//		System.out.println("browser audio start time: "+browserAudioStartTime);
+//		System.out.println("phone audio start time: "+phoneAudioStartTime);
+//		System.out.println("wear audio start time: " + wearAudioStartTime);
+//		System.out.println("browser server time offset: "+browserServerTimeOffset);
+//		System.out.println("phone server time offset: "+ phoneServerTimeOffset);
+//		System.out.println("phone wear time offset: " + phoneWearTimeOffset);
 		 
-		//syncing with phone audio
-		long syncPhoneWearStartTime = phoneAudioStartTime - phoneWearTimeOffset;
-		int syncPhoneTimeMs = (int)(wearAudioStartTime - syncPhoneWearStartTime);
-		System.out.println("Sync phone wear start time: " + syncPhoneWearStartTime);
-		System.out.println("Sync wear  start time: " + wearAudioStartTime);
-		System.out.println("Phone time to be sync: " + syncPhoneTimeMs);
+//		//synching browser audio start time
+//		long syncBrowserAudioStartTime = browserAudioStartTime - browserServerTimeOffset;
+//		long syncPhoneAudioStartTime = phoneAudioStartTime - phoneServerTimeOffset;
+//		//wear audio start time in terms of phone clock = wearAudioStartTime + phoneWearTimeOffset;
+//		long syncWearAudioStartTime = (wearAudioStartTime + phoneWearTimeOffset) - phoneServerTimeOffset;
+//		
+//		System.out.println("Browser start time: " + syncBrowserAudioStartTime + 
+//				"\nPhone start time: " + syncPhoneAudioStartTime +
+//				"\nWear start time: " + syncWearAudioStartTime);
+//		System.out.println("\n\nWear time to be sync: " + (syncBrowserAudioStartTime - syncWearAudioStartTime) + 
+//				"\nPhone time to be sync: " + (syncBrowserAudioStartTime - syncPhoneAudioStartTime));
+//		
 		
+		
+		/**
+		 * Consideration: phone recording starts first, then wear recording and then
+		 * browser audio recording
+		 * Client/Browser application hit start button to trigger recording in phone and watch 
+		 * Phone starts recording and trigger wear app to start recording
+		 * In Client/Browser, when user enter password, it plays audio in background and also starts recordings
+		 */
+		//syncing wear with phone audio
+		long syncPhoneWearStartTime = phoneAudioStartTime - phoneWearTimeOffset;
+		//syncing phone with respect to wear audio
+		int syncPhoneTimeMs = (int)(wearAudioStartTime - syncPhoneWearStartTime);
+//		System.out.println("Sync phone wear start time: " + syncPhoneWearStartTime);
+//		System.out.println("Sync wear  start time: " + wearAudioStartTime);
+		
+		//syncing phone and wear with browser audio
 		long syncPhoneServerStartTime = phoneAudioStartTime - phoneServerTimeOffset;
 		long syncBrowserServerStartTime = browserAudioStartTime - browserServerTimeOffset;
-		int syncServerTimeMs = (int)(syncPhoneServerStartTime - syncBrowserServerStartTime);
-		System.out.println("Sync phone server start time: " + syncPhoneServerStartTime);
-		System.out.println("Sync browser server start time:" +  syncBrowserServerStartTime);
-		System.out.println("Time to be sync: " + syncServerTimeMs);
-		System.out.println("combined time to be synced: " + (syncServerTimeMs + syncPhoneTimeMs));
+		int syncPhoneBrowserTimeMs = (int)(syncBrowserServerStartTime - syncPhoneServerStartTime);
+		int syncWearTimeMs = syncPhoneBrowserTimeMs;
+		//syncing phone with respect to phone as well as browser.
+		syncPhoneTimeMs = syncPhoneTimeMs + syncPhoneBrowserTimeMs;
+//		System.out.println("Sync phone server start time: " + syncPhoneServerStartTime);
+//		System.out.println("Sync browser server start time:" +  syncBrowserServerStartTime);
 		
+		//System.out.println("Phone audio to be sync for wear and phone synchronization: " + syncPhoneTimeMs);
+		System.out.println("Wear time lab to be sync: " + syncWearTimeMs);
+		System.out.println("Phone time lag to be sync: " + syncPhoneTimeMs);
 	    
 		
 		
@@ -203,39 +236,35 @@ public class BrowserMobileWearSynchronizer {
 //	    int syncTimeMs = (int)(syncPhoneAudioStartTime - syncBrowserAudioStartTime);
 //		System.out.println("Sync phone start time: " + syncPhoneAudioStartTime);
 //		System.out.println("Sync browser start time:" +  syncBrowserAudioStartTime);
-//		System.out.println("Time to be sync: " + syncTimeMs);
+//		System.out.println("Browser time to be sync: " + syncTimeMs);
 	    
 		
-		Short channels = 2;
+		Short channels = 1;
 		Short BPP = 16;
-		int sampleRate = 44100;
+		int sampleRate = 22050;
 		
-		//synching phone audio with wear recordings
-		String toBeSyncFilePath = mAudioFilePath;
-	    if(syncPhoneTimeMs<0){
+		
+		if(syncPhoneTimeMs<0){
 	    	//syncFilePath = mAudioFilePath;
 	    	System.err.println("Synch Phone time < 0");
 	    	System.exit(0);
 	    }
-	    
-	    
-	   WavFileReader wavReader = new WavFileReader(channels, BPP, sampleRate);
-	   String mOutFilePath = toBeSyncFilePath.substring(0, toBeSyncFilePath.indexOf(".wav")) + "_sync.wav";
-	   List<Short> phoneAudioList = wavReader.subAudio(toBeSyncFilePath, mOutFilePath, 0, syncPhoneTimeMs);
-	  
-	   toBeSyncFilePath = bAudioFilePath;
-	    if(syncServerTimeMs < 0 || syncPhoneTimeMs < 0){
-	    	//syncFilePath = mAudioFilePath;
-	    	System.err.println("Synch server or phone time < 0");
+	    if(syncWearTimeMs<0){
+	    	System.err.println("Sync phone wear time < 0");
 	    	System.exit(0);
 	    }
 	    
-	   String bOutFilePath = toBeSyncFilePath.substring(0, toBeSyncFilePath.indexOf(".wav")) + "_sync.wav";
-	   List<Short> browserAudioList = wavReader.subAudio(toBeSyncFilePath, bOutFilePath, 0, (syncServerTimeMs + syncPhoneTimeMs));
+	  /* synching phone audio*/
+	   String toBeSyncFilePath = mAudioFilePath;
+	   WavFileReader wavReader = new WavFileReader(channels, BPP, sampleRate);
+	   String mOutFilePath = toBeSyncFilePath.substring(0, toBeSyncFilePath.indexOf(".wav")) + "_sync.wav";
+	   List<Short> phoneAudioList = wavReader.subAudio(toBeSyncFilePath, mOutFilePath, 0, syncPhoneTimeMs);
+	   List<Short> browserAudioList = wavReader.readFile(bAudioFilePath);
 	   
-	   browserAudioList = wavReader.readFile(bOutFilePath);
-	   phoneAudioList = wavReader.readFile(mOutFilePath);
-	   List<Short> wearAudioList = wavReader.readFile(wAudioFilePath);
+	   /* synching wear audio*/
+	   toBeSyncFilePath = wAudioFilePath;
+	   String wOutFilePath = toBeSyncFilePath.substring(0, toBeSyncFilePath.indexOf(".wav")) + "_sync.wav";
+	   List<Short> wearAudioList = wavReader.subAudio(toBeSyncFilePath, wOutFilePath, 0, syncWearTimeMs);
 	   
 	   //all length are in milliseconds
 	   int bAudioLen = (browserAudioList.size() * 1000)/(channels*sampleRate);
@@ -243,32 +272,161 @@ public class BrowserMobileWearSynchronizer {
 	   int wAudioLen = (wearAudioList.size() * 1000)/(1 * 22050);
 	   int shortestLen = (bAudioLen < mAudioLen)?((bAudioLen<wAudioLen)?bAudioLen:wAudioLen):((mAudioLen<wAudioLen)?mAudioLen:wAudioLen);
 
-	   System.out.println("Browser Length: " + bAudioLen + 
-			   "\nPhone Length: " + mAudioLen + 
-			   "\nWear Length: " + wAudioLen);
-	   System.out.println("Shortest len : " + shortestLen);
+//	   System.out.println("Browser Length: " + bAudioLen + 
+//			   "\nPhone Length: " + mAudioLen + 
+//			   "\nWear Length: " + wAudioLen);
+//	   System.out.println("Shortest len : " + shortestLen);
+	
+	   String mOutFile = mOutFilePath.substring(0, mOutFilePath.indexOf(".wav")) + "_l.wav";
+	   wavReader.subAudio(mOutFilePath, mOutFile, shortestLen, 0);
+	   WavFileReader.deleteFile(mOutFilePath);
+	   WavFileReader.renameFile(mOutFile, mOutFilePath);
 	   
-	   if(shortestLen != bAudioLen){
-		   String outFile = bOutFilePath.substring(0, bOutFilePath.indexOf(".wav")) + "_l.wav";
-		   wavReader.subAudio(bOutFilePath, outFile, shortestLen, 0);
-	   }
-	   if(shortestLen != mAudioLen){
-		   String outFile = mOutFilePath.substring(0, bOutFilePath.indexOf(".wav")) + "_l.wav";
-		   wavReader.subAudio(mOutFilePath, outFile, shortestLen, 0);
-	   }
-	   //channels and sample rate is different for wear audio
-	   if(shortestLen != wAudioLen){
-		   channels = 1;
-		   sampleRate = 22050;
-		   wavReader = new WavFileReader(Short.parseShort("1"), BPP, 22050);
-		   String outFile = wAudioFilePath.substring(0, wAudioFilePath.indexOf(".wav")) + "_l.wav";
-		   wavReader.subAudio(wAudioFilePath, outFile, shortestLen, 0);
-	   }
-	 
+	   String bOutFile = bAudioFilePath.substring(0, bAudioFilePath.indexOf(".wav")) + "_sync.wav";
+	   wavReader.subAudio(bAudioFilePath, bOutFile, shortestLen, 0);
+//	   WavFileReader.deleteFile(bAudioFilePath);
+//	   WavFileReader.renameFile(bOutFile, bAudioFilePath);
+	   
+//	   wavReader = new WavFileReader(new Short("1"), BPP, 22050);
+	   String wOutFile = wOutFilePath.substring(0, wOutFilePath.indexOf(".wav")) + "_l.wav";
+	   wavReader.subAudio(wOutFilePath, wOutFile, shortestLen, 0);
+	   WavFileReader.deleteFile(wOutFilePath);
+	   WavFileReader.renameFile(wOutFile, wOutFilePath);
+	   
+	   
+	   
+	   
 	 }
 	
+	 public String removeSyncFromWavFileName(String filename){
+		 String str[] = filename.split("_");
+		 String outFileName = "";
+		 for(int i = 0;i < (str.length - 1); i++){
+			 if(i == 0)
+				 outFileName += str[i];
+			 else
+				 outFileName += "_" + str[i];
+		 }
+		 outFileName += ".wav";
+		 //System.out.println("\noutfile anem: " + outFileName);
+		 return outFileName;
+	 }
 	
-	
+	/**
+	 * This method creates .wav file from .raw file
+	 * @param inFilename complete path of raw audio file
+	 * @param outFilename complete path of .wav audio file to be created
+	 */
+	private void copyWaveFile(String inFilename,String outFilename){
+        FileInputStream in = null;
+        FileOutputStream out = null;
+        long totalAudioLen = 0;
+        int intTotalAudioLen = 0;
+
+        int totalDataLen = intTotalAudioLen + 44;
+        byte[] data = new byte[bufferSize];
+
+        try {
+            in = new FileInputStream(inFilename);
+            out = new FileOutputStream(outFilename);
+
+            totalAudioLen = in.getChannel().size();
+            if((totalAudioLen + 44) >Integer.MAX_VALUE){
+                throw new RuntimeException("file size is greate that expected");
+            }
+            intTotalAudioLen = (int)totalAudioLen;
+            totalDataLen = intTotalAudioLen + 44;
+
+           
+            writeWaveFileHeader(out, intTotalAudioLen, totalDataLen,
+                    Constants.SAMPLE_RATE, channels, BPP);
+
+            while(in.read(data) != -1){
+            	out.write(data);
+            }
+
+            in.close();
+            out.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+      //  statusText.setText("Finished recordings");
+    }
+	    
+	/**
+	 * write header file in .wav file
+	 * @param out outputstream of .wav file
+	 * @param totalAudioLen total audio length in bytes excluding header
+	 * @param totalDataLen  total data lenght in bytes including header
+	 * @param sampleRate samplerate of audio recordings
+	 * @param noOfChannels number of audio channels
+	 * @param BPP 
+	 * @throws IOException
+	 */
+		public void writeWaveFileHeader(FileOutputStream out,
+	                                    int totalAudioLen,
+	                                    int totalDataLen,
+	                                    int sampleRate,
+	                                    short noOfChannels,
+	                                    short BPP) throws IOException {
+
+	        String riffHeader = "RIFF";
+	        String waveHeader = "WAVE";
+	        String fmtHeader = "fmt ";
+	        String data = "data";
+
+	        //short BPP = 16; //bit per sample
+	        //short numOfChannels = 2;//2 for stereo
+	        //int totalDataLen = 999999;
+	        //int totalAudioLen = 99966699;
+	        //int sampleRate =44100;
+
+	        int lengthOfFormat = 16;
+	        short typeOfFormat = 1; //1 for PCM
+	        int bytesRate = sampleRate * BPP * noOfChannels/8;
+	        //System.out.println("Byte Rate: " + bytesRate);
+	        short totalBytesPerSample =  (short) ((short)(BPP * noOfChannels)/8);
+
+	        int allocSize = 44; //default header size
+	        /**
+	         * riffHeader.getBytes().length + waveHeader.getBytes().length + fmtHeader.getBytes().length + data.getBytes().length + INT_SIZE*5 + SHORT_SIZE*4;
+	         */
+	        ByteBuffer headerBuffer = ByteBuffer.allocate(allocSize);
+
+	        headerBuffer.order(ByteOrder.LITTLE_ENDIAN);
+
+			 /* RIFF (4 bytes) */
+	        headerBuffer.put(riffHeader.getBytes());
+			 /* File Size (4 bytes) */
+	        headerBuffer.putInt(totalDataLen);
+			 /* WAVE (4 byte) */
+	        headerBuffer.put(waveHeader.getBytes());
+			 /* fmt (4 bytes) */
+	        headerBuffer.put(fmtHeader.getBytes());
+			 /* Length of format data as listed above (4 bytes) */
+	        headerBuffer.putInt(lengthOfFormat);
+			 /* Type of format (1 for PCM) 2 bytes */
+	        headerBuffer.putShort(typeOfFormat);
+			 /*Number of channels (2 bytes)*/
+	        headerBuffer.putShort(noOfChannels);
+			 /*Sample Rate (4 bytes)*/
+	        headerBuffer.putInt(sampleRate);
+			 /*number of bytes in 1 seconds (4 bytes)*/
+	        headerBuffer.putInt(bytesRate);
+			 /*number of bytes in 1 sample (combining both channel) (2 bytes)*/
+	        headerBuffer.putShort(totalBytesPerSample);
+			 /*Bits per sample (2 bytes)*/
+	        headerBuffer.putShort(BPP);
+			 /*data (4 bytes)*/
+	        headerBuffer.put(data.getBytes());
+			 /*File size (4 bytes)*/
+	        headerBuffer.putInt(totalAudioLen);
+
+	        out.write(headerBuffer.array());
+
+	    }
 	/**
 	 * method that list all the files
 	 */
@@ -325,16 +483,16 @@ public class BrowserMobileWearSynchronizer {
 	    			String bMiddleString = currentCSVFileName.substring(lengthOfTime, endOfMid) + "_";
 	    			
 	    			// complete browser file paths
-	    			bAudioFilePath  = browserPath + initialFileName + bMiddleString + Constants.BROWSER_AUDIO_FILE;
+	    			bAudioFilePath  = browserPath + initialFileName + bMiddleString + Constants.BROWSER_AUDIO_FILE_NAME;
 	    			bAudioTimeInfoFilePath =  browserPath + initialFileName + bMiddleString + Constants.BROWSER_AUDIO_TIME_FILE;
-	    			bAudioTimeSyncFilePath = browserPath + initialFileName + bMiddleString + Constants.BROWSER_SERVER_TIME_SYNC_FILE;
+	    			bAudioTimeSyncFilePath = browserPath + initialFileName + bMiddleString + Constants.BROWSER_TIME_SYNC_FILE_NAME;
 	    			
 	    			
 	    			
 	    			// complete mobile file paths
-	    			mAudioFilePath  = phonePath + initialFileName + mMiddleString + Constants.PHONE_AUDIO_FILE;
-	    			mAudioTimeInfoFilePath =  phonePath + initialFileName + mMiddleString + Constants.AUDIO_TIME_FILE;
-	    			mAudioTimeSyncFilePath = phonePath + initialFileName + mMiddleString + Constants.PHONE_SERVER_TIME_SYNC_FILE;
+	    			mAudioFilePath  = phonePath + initialFileName + mMiddleString + Constants.PHONE_AUDIO_FILE_NAME;
+	    			mAudioTimeInfoFilePath =  phonePath + initialFileName + mMiddleString + Constants.PHONE_AUDIO_TIME_FILE;
+	    			mAudioTimeSyncFilePath = phonePath + initialFileName + mMiddleString + Constants.PHONE_TIME_SYNC_FILE;
 	    			
 	    			
 	    			
@@ -364,7 +522,8 @@ public class BrowserMobileWearSynchronizer {
 
 		String brDirPath = "./dataset/syncTest/chrome/mac/";
 		String mbDirPath = "./dataset/syncTest/chrome/phone/";
-		String fileInitials = "1452900986653_test3";//"1452900950421_test2"; //"1452900915404_test1";
+		String fileInitials = "1453645308313_roomTest_amazing";//"1452900950421_test2"; //"1452900915404_test1";
+		
 		String bAudioFilePath = brDirPath + fileInitials + "_browser_audio.wav";
 		String bTimeInfoFilePath = brDirPath + fileInitials + "_browser_audio_time.csv";
 		String bTimeSyncFilePath = brDirPath + fileInitials + "_browser_time_sync.csv";
@@ -375,9 +534,48 @@ public class BrowserMobileWearSynchronizer {
 		String wAudioFilePath = mbDirPath + fileInitials + File.separator + "wear_audio.wav";
 		BrowserMobileWearSynchronizer b = new BrowserMobileWearSynchronizer(brDirPath, mbDirPath);
 		
+		
+		String dirPath = "./dataset/syncTest/chrome/synched";
+		File synchedFolder = new File(dirPath);
+		if(!synchedFolder.exists()){
+			synchedFolder.mkdirs();
+		}
+		File newFilePath = new File(dirPath + File.separator + fileInitials + "_browser_audio.wav");
+		WavFileReader.copyFile(new File(bAudioFilePath), newFilePath);
+		bAudioFilePath = newFilePath.getPath();
+		
+		newFilePath = new File(dirPath + File.separator + fileInitials + "_phone_audio.wav");
+		WavFileReader.copyFile(new File(mAudioFilePath), newFilePath);
+		mAudioFilePath = newFilePath.getPath();
+		
+		newFilePath = new File(dirPath + File.separator + fileInitials + "_wear_audio.wav");
+		WavFileReader.copyFile(new File(wAudioFilePath), newFilePath);
+		wAudioFilePath = newFilePath.getPath();
+		
+//		System.out.println("Phone audio: " + mAudioFilePath + 
+//				"\n wear audio: " + wAudioFilePath+
+//				"\nbrowser audio: " + bAudioFilePath );
+		//converstion to lower sampling rate 22050 with mono channels
+		String toFile = bAudioFilePath.substring(0, bAudioFilePath.indexOf(".wav")) + "_smpl.wav";
+		WavFileReader.convertAudioFormat(bAudioFilePath, toFile, 22050, 1, 2);
+		
+		
+		toFile = mAudioFilePath.substring(0, mAudioFilePath.indexOf(".wav")) + "_smpl.wav";
+		WavFileReader.convertAudioFormat(mAudioFilePath, toFile, 22050, 1, 2);
+		
 		b.synchronize(bAudioFilePath, bTimeInfoFilePath, bTimeSyncFilePath, mAudioFilePath, mTimeInfoFilePath, mTimeSyncFilePath,wAudioFilePath, wTimeSyncFilePath);
 		
-		
+		//removing unnessary files from synched folder
+		if(synchedFolder.isDirectory()){
+			System.out.println("\nRemoving unnessary files from synched directory...");
+			System.out.println("*******************************************************");
+			File[] fileList = synchedFolder.listFiles();
+			for(File f: fileList){
+				if(!f.getName().contains("sync")){
+					WavFileReader.deleteFile(f.getPath());
+				}
+			}
+		}
 		
 //		/**
 //		 * if it phone audio time info file is missing then do the following steps:
@@ -421,6 +619,8 @@ public class BrowserMobileWearSynchronizer {
 //		
 	}
 	
+
+	
 	public int avgTimeDiffBtwTimeSyncStartAndAudioStart(){
 		int avg = 0;
 		long sum = 0;
@@ -435,31 +635,26 @@ public class BrowserMobileWearSynchronizer {
 			sum+=(phoneTimeSyncStartTime - phoneAudioStartTime);
 		}
 		avg = (int) sum/mAudioTimeInfoFilePathList.size();
-		System.out.println("Avg: " + avg);
+		//System.out.println("Avg: " + avg);
 		return avg;
 	}
 	
 	
 
 	public static FileType getFileType(String fileName){
-		if(fileName.endsWith(Constants.BROWSER_AUDIO_FILE)){
-			return FileType.BROWSER_AUDIO;
-		}else if(fileName.endsWith(Constants.BROWSER_AUDIO_TIME_FILE))
+		if(fileName.endsWith(Constants.BROWSER_AUDIO_TIME_FILE))
 			return FileType.BROWSER_TIME_INFO;
-		else if(fileName.endsWith(Constants.BROWSER_SERVER_TIME_SYNC_FILE)){
-			return FileType.BROWSER_SERVER_TIME_SYNC;
-		}else if(fileName.endsWith(Constants.PHONE_AUDIO_FILE)){
+		else if(fileName.endsWith(Constants.BROWSER_TIME_SYNC_FILE_NAME)){
+			return FileType.BROWSER_TIME_SYNC;
+		}else if(fileName.endsWith(Constants.BROWSER_AUDIO_FILE_NAME)){
+			return FileType.BROWSER_AUDIO;
+		}else if(fileName.endsWith(Constants.PHONE_AUDIO_TIME_FILE)){
+			return FileType.PHONE_TIME_INFO;
+		}else if(fileName.endsWith(Constants.PHONE_TIME_SYNC_FILE)){
+			return FileType.PHONE_TIME_SYNC;
+		}else if(fileName.endsWith(Constants.PHONE_AUDIO_FILE_NAME)){
 			return FileType.PHONE_AUDIO;
-		}else if(fileName.endsWith(Constants.AUDIO_TIME_FILE)){
-			return FileType.AUDIO_TIME_INFO;
-		}else if(fileName.endsWith(Constants.WEAR_AUDIO_FILE)){
-			return FileType.WEAR_AUDIO;
-		}else if(fileName.endsWith(Constants.PHONE_WEAR_TIME_SYNC_FILE)){
-			return FileType.PHONE_WEAR_TIME_SYNC;
-		}else if(fileName.endsWith(Constants.PHONE_SERVER_TIME_SYNC_FILE)){
-			return FileType.PHONE_SERVER_TIME_SYNC;
 		}
-		
 		return null;
 		
 	}
